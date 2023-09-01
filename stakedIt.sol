@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.0;
 
+import {ERC20} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol";
+
 interface OFWStake {
     function transferFrom(
         address from,
@@ -13,9 +15,10 @@ interface OFWStake {
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
-contract StakedIt {
+contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
     address immutable tokenContract;
     uint256 public contractBalance;
+    uint256 min_stake_duration = 60 minutes;
 
     struct Stakers {
         uint256 stakedAmount;
@@ -46,10 +49,25 @@ contract StakedIt {
     function withdraw(uint256 _amount) public {
         OFWStake ofwStake = OFWStake(tokenContract);
         uint withdrawableBalance = stakers[msg.sender].stakedAmount;
-        require(withdrawableBalance >= _amount, "Insufficient staked amount");
-        stakers[msg.sender].stakedAmount -= _amount;
-        ofwStake.transfer(msg.sender, _amount);
-        emit Transfer(address(this), msg.sender, _amount);
+        uint256 _stakeTime = stakers[msg.sender].stakeTime;
+        uint256 _stakeWithdrawalTime = _stakeTime + min_stake_duration;
+
+        if (_stakeWithdrawalTime > block.timestamp) {
+            revert("Withdrawal time not reached");
+        } else if (withdrawableBalance >= 1_000_000) {
+            if (_amount < 1_000_000) {
+                revert("ERC20: cannot withdraw less than 1_000_000 tokens");
+            } else {
+                require(
+                    withdrawableBalance >= _amount,
+                    "Insufficient staked balance"
+                );
+                stakers[msg.sender].stakedAmount -= _amount;
+                _mint(msg.sender, 1_00_000);
+                ofwStake.transfer(msg.sender, _amount);
+                emit Transfer(address(this), msg.sender, _amount);
+            }
+        }
     }
 
     function getStakedAmount(address _staker) public view returns (uint) {
