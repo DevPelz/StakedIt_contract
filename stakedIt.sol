@@ -19,6 +19,8 @@ contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
     address immutable tokenContract;
     uint256 public contractBalance;
     uint256 min_stake_duration = 60 minutes;
+    uint8 rate = 3;
+    uint8 percentage = 100;
 
     struct Stakers {
         uint256 stakedAmount;
@@ -46,31 +48,40 @@ contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
         emit Staked(_amount, stakers[msg.sender].stakedAmount, block.timestamp);
     }
 
-    function withdraw(uint256 _amount) public {
-        OFWStake ofwStake = OFWStake(tokenContract);
+    function withdraw() public {
         uint withdrawableBalance = stakers[msg.sender].stakedAmount;
         uint256 _stakeTime = stakers[msg.sender].stakeTime;
         uint256 _stakeWithdrawalTime = _stakeTime + min_stake_duration;
 
         if (_stakeWithdrawalTime > block.timestamp) {
             revert("Withdrawal time not reached");
-        } else if (withdrawableBalance >= 1_000_000) {
-            if (_amount < 1_000_000) {
-                revert("ERC20: cannot withdraw less than 1_000_000 tokens");
-            } else {
-                require(
-                    withdrawableBalance >= _amount,
-                    "Insufficient staked balance"
-                );
-                stakers[msg.sender].stakedAmount -= _amount;
-                _mint(msg.sender, 1_00_000);
-                ofwStake.transfer(msg.sender, _amount);
-                emit Transfer(address(this), msg.sender, _amount);
-            }
+        } else {
+            require(withdrawableBalance > 0, "Insufficient staked balance");
+
+            uint256 stakeCalculation = (withdrawableBalance * rate) /
+                percentage;
+            uint256 stakeDuration = (block.timestamp - _stakeTime) /
+                min_stake_duration;
+            uint256 stakeReward = stakeDuration * stakeCalculation;
+            tokenContract.transfer(msg.sender, withdrawableBalance);
+            emit Transfer(address(this), msg.sender, withdrawableBalance);
+            _mint(msg.sender, stakeReward);
+
+            contractBalance -= stakers[msg.sender].stakedAmount;
+            stakers[msg.sender].stakedAmount = 0;
         }
     }
 
     function getStakedAmount(address _staker) public view returns (uint) {
         return stakers[_staker].stakedAmount;
+    }
+
+    function getExpectedReward(
+        uint _amount,
+        uint256 _time
+    ) external view returns (uint) {
+        uint exRwd = (_amount * rate) / 100;
+        uint rwdTime = (_time) / min_stake_duration;
+        return exRwd * rwdTime;
     }
 }
