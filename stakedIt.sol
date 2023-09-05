@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.0;
 
-import {ERC20} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 interface OFWStake {
     function transferFrom(
@@ -16,7 +16,7 @@ interface OFWStake {
 }
 
 contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
-    address immutable tokenContract;
+    OFWStake immutable tokenContract;
     uint256 public contractBalance;
     uint256 min_stake_duration = 60 minutes;
     uint8 rate = 3;
@@ -29,13 +29,12 @@ contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
 
     mapping(address => Stakers) stakers;
     event Staked(uint256 amount, uint256 totalAmountStaked, uint256 time);
-    event Transfer(address indexed from, address indexed to, uint256 value);
 
     constructor(address _tokenContract) {
-        tokenContract = _tokenContract;
+        tokenContract = OFWStake(_tokenContract);
     }
 
-    function stake(uint256 _amount) public {
+    function stake(uint256 _amount) external {
         OFWStake ofwStake = OFWStake(tokenContract);
         uint256 balance = ofwStake.balanceOf(msg.sender);
         require(balance >= _amount, "Insufficient Balance");
@@ -48,7 +47,7 @@ contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
         emit Staked(_amount, stakers[msg.sender].stakedAmount, block.timestamp);
     }
 
-    function withdraw() public {
+    function withdraw() external {
         uint withdrawableBalance = stakers[msg.sender].stakedAmount;
         uint256 _stakeTime = stakers[msg.sender].stakeTime;
         uint256 _stakeWithdrawalTime = _stakeTime + min_stake_duration;
@@ -72,7 +71,7 @@ contract StakedIt is ERC20("STAKING_REWARDS_TOKEN", "SRT") {
         }
     }
 
-    function getStakedAmount(address _staker) public view returns (uint) {
+    function getStakedAmount(address _staker) external view returns (uint) {
         return stakers[_staker].stakedAmount;
     }
 
